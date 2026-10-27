@@ -1,0 +1,27 @@
+name: Bug report
+description: Report a reproducible issue
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Please do not include credentials or private test output. Use private reporting for security issues."
+  - type: input
+    id: version
+    attributes:
+      label: RegressionProof version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include a minimal example with sanitized JUnit XML where possible
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behaviour
+    validations:
+      required: true

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuite name="example">
+  <testcase classname="tests.test_api" name="test_login" />
+  <testcase classname="tests.test_api" name="test_checkout"><failure message="pre-existing bug" /></testcase>
+  <testcase classname="tests.test_api" name="test_legacy" />
+</testsuite>

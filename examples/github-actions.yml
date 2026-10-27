@@ -1,0 +1,40 @@
+# Example integration AFTER publishing RegressionProof at an immutable Git commit.
+# Copy to YOUR target project's .github/workflows/regressionproof.yml.
+# This is a template: REPLACE OWNER/REPO and <FULL_40_CHARACTER_COMMIT_SHA>.
+name: Regression comparison
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install target project's pytest and dependencies
+        run: python -m pip install pytest
+      - name: Install reviewed RegressionProof revision
+        # Do NOT run until the repository has been published and the hash replaced.
+        run: python -m pip install 'git+https://github.com/OWNER/REPO.git@<FULL_40_CHARACTER_COMMIT_SHA>'
+      - name: Compare tests
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          regressionproof check --base "$BASE_SHA" --head HEAD --runs 2 \
+            --test-command '{python} -m pytest -q --junitxml={report}' \
+            --output .regressionproof
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regressionproof-report
+          path: .regressionproof/
+          if-no-files-found: ignore

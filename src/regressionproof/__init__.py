@@ -1,0 +1,3 @@
+"""RegressionProof: evidence-based test regressions across Git revisions."""
+
+__version__ = "0.1.0"
