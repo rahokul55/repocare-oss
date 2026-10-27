@@ -141,7 +141,7 @@ def to_html(comparison: Comparison) -> str:
         f'<span class="status {payload["status"]}">'
         f'{html_escape(payload["status"].replace("_", " "))}</span>',
         '<p class="subtitle">Evidence from actual JUnit test runs. '
-        'Not a causality or security proof.</p>', 
+        'Not a causality or security proof.</p>',
         '<div class="meta">',
         f'<div><strong>Base:</strong> <code>{html_escape(comparison.base.ref)}</code> '
         f'(<code>{html_escape(comparison.base.sha[:12])}</code>)</div>',
@@ -177,6 +177,7 @@ def to_html(comparison: Comparison) -> str:
     lines.append('<footer>RegressionProof 0.2.0. Test names originate from JUnit XML. '
                  'Missing tests are not considered passing.</footer></main></body></html>')
     return "\n".join(lines) + "\n"
+
 
 def write_report(comparison: Comparison, directory: Path) -> tuple[Path, Path]:
     directory.mkdir(parents=True, exist_ok=True)

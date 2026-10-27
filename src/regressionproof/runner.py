@@ -7,15 +7,15 @@ runs with the permissions, network and secrets of the current process.
 from __future__ import annotations
 
 import os
-import signal
 import shlex
+import signal
 import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from collections.abc import Iterator
 
 from .junit import JUnitError, parse_junit
 from .model import Outcome, RevisionResult, TestRun

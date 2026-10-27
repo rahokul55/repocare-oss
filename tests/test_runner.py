@@ -80,7 +80,7 @@ def test_compare_mode_cli(write_junit, tmp_path):
 
 
 def test_timeout_terminates_test_process(git_project, tmp_path):
-    repo, base, head, git = git_project
+    repo, _, _, git = git_project
     # The timeout terminates a running test and worktrees are cleaned up.
     (repo / 'hang.py').write_text('import time\ntime.sleep(30)\n', encoding='utf-8')
     git('add', 'hang.py')
