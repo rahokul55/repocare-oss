@@ -1,75 +1,49 @@
-# RegressionProof: GitHub'a yayımlama ve yerel kullanım
+# RegressionProof — GitHub ve Windows kullanım kılavuzu
 
-Bu kılavuz Windows 10/11 ve PowerShell kullanan geliştiriciler içindir. Projenin kodu hazırdır; GitHub üzerinde yeni depo açılması hesap sahibinin kendi oturumunda yapılmalıdır. Repo otomatik oluşturulduğu veya GitHub'a dosya gönderildiği iddia edilmez.
+**Mevcut depo:** https://github.com/rahokul55/repocare-oss
 
-## 1. Depo oluştur
+Bu depo zaten herkese açık olarak oluşturuldu ve kaynak kodları yüklendi. Yeni depo açman gerekmez. GitHub Actions çalıştırmalarının sonuçlarını ayrıca kontrol etmek gerekir.
 
-1. https://github.com/new adresine gir.
-2. Owner: `rahokul55` (değişmişse GitHub hesabını seç).
-3. Repository name: `regressionproof`.
-4. Description: `Evidence-based test regression comparison across Git revisions.`
-5. Visibility: **Public**.
-6. **Add a README file**, **Add .gitignore** ve **Choose a license** seçimlerini boş bırak; proje bunları içeriyor.
-7. Create repository ile boş depoyu oluştur.
+## 1. Bilgisayarına kur
 
-## 2. Projeyi gönder
-
-ZIP dosyasını aç ve `regressionproof` klasöründeki bir PowerShell penceresinde şu komutu çalıştır:
+Windows PowerShell'de:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\publish.ps1
-```
-
-Betik `git init`, `git add`, `git commit` ve `git push` uygular. Git ismini ve e-postanı henüz ayarlamadıysan önce:
-
-```powershell
-git config --global user.name "GITHUB PROFIL ADIN"
-git config --global user.email "GITHUB HESABINDA DOGRULANMIS E-POSTA"
-```
-
-Alternatif olarak, hiçbir betik kullanmadan:
-
-```powershell
-git init
-git branch -M main
-git add .
-git commit -m "Initial RegressionProof source release"
-git remote add origin https://github.com/rahokul55/repocare-oss.git
-git push -u origin main
-```
-
-Kodu gönderdikten sonra `https://github.com/rahokul55/repocare-oss` aç. GitHub → Actions → CI iş akışını kontrol et. Bunun başarılı olduğunu doğrulamadan projeyi "CI passing" olarak tanıtma.
-
-## 3. Bilgisayarda kur
-
-```powershell
-python -m pip install -e .
+git clone https://github.com/rahokul55/repocare-oss.git
+cd repocare-oss
+python -m pip install -e ".[dev]"
 python -m pytest -q
 regressionproof --version
+```
+
+## 2. Test raporlarını karşılaştır
+
+```powershell
 regressionproof compare --base-xml examples/base.xml --head-xml examples/head.xml --no-fail
 ```
 
-Rapor `.regressionproof/report.md` altında oluşur. Entegrasyon testi çalıştırmak ve kod kalite kontrolü yapmak için `python -m pip install -e ".[dev]"` kullan.
+`.regressionproof` klasöründe JSON, Markdown ve `report.html` dosyaları oluşur. HTML raporunu çift tıklayarak açabilirsin.
 
-## 4. Kendi projenin iki commit'ini kontrol et
+## 3. Gerçek Git sürümlerini incele
 
-Bunun için hedef projede Python ve pytest kurulu olmalı. Hedef deponun klasörüne geçerek:
+Testleri JUnit XML üretebilen başka bir Git projesinde:
 
 ```powershell
-regressionproof check --base main --head HEAD --test-command "{python} -m pytest -q --junitxml={report}" --runs 2
+regressionproof check --base main --head HEAD --test-command "{python} -m pytest -q --junitxml={report}" --runs 3
 ```
 
-Python dışındaki test sistemleri de JUnit XML çıktısı verebiliyorsa `--test-command` ile kullanılabilir. Depo içindeki test kodu çalıştırıldığı için bilinmeyen kişilerin PR'larını kişisel bilgisayarda yürütme.
+`--runs 3` komutu testi her sürümde üç kez çalıştırır. Uygulamanın beklenen test bağımlılıklarının ortamında kurulu olması gerekir. Test kodu dış kaynaklardan geliyorsa onu yalnızca yetkisiz, geçici CI sisteminde çalıştır.
 
-## 5. Açık kaynak bakım adımları
+## 4. GitHub CI
 
-- GitHub Settings → Security altında Private vulnerability reporting'i etkinleştir.
-- Issues ve Discussions kullanarak geri bildirim al.
-- Releases bölümünde ancak sürümü doğruladıktan sonra `v0.1.0` etiketi ile bir sürüm yayımla.
-- README'de gerçek kullanıcı sayısını ve performans verisini yalnızca ölçülmüşse belirt.
-- PR'larda `CI` sonuçlarını kontrol et; korumalı `main` dalı ayarlarını düşün.
-- Gerçek hata bildirimlerini ve katkıları takip ederek sınıflandırma kurallarını geliştir.
+https://github.com/rahokul55/repocare-oss/actions adresini aç. **CI** iş akışında Python sürüm matrisini kontrol et. Gerekirse **Run workflow** kullan. Yeşil CI sonucunu gerçekten görmeden README veya başvuruda geçtiğini iddia etme.
 
-## 6. Codex for Open Source başvurusu
+Bir başka projede kullanım örneği: [`examples/github-actions.yml`](../examples/github-actions.yml). Bağımlılığı güvenilir bir commit SHA'sına sabitle ve proje test bağımlılıklarını kur.
 
-Başvuruda `primary maintainer` rolünü ancak bu repoyu gerçekten bakımını üstleniyorsan belirt. Yeni projeyi yaygın kullanılan bir altyapıymış gibi sunma. Yıldız/indirme sayısı sıfırsa doğru sayıyı kullan; ilk aşamada projenin hangi somut problemi çözdüğüne ve neyi kanıtlayabildiğine odaklan. Yeni bir proje programın seçilme önceliklerini karşılamayabilir.
+## 5. Projeyi sürdürülebilir tut
+
+- GitHub Issues üzerinden gerçek hata bildirimlerini takip et; rapor dosyalarında kimlik bilgileri bulunmamasına dikkat et.
+- Private vulnerability reporting ayarını etkinleştir.
+- Yenilikleri ayrı PR'lar ve çalışan CI ile incele; `main` için korumalı dal kuralı düşün.
+- Sürümü ancak test, paketleme ve güvenlik kontrolleri tamamlandıktan sonra GitHub Releases üzerinden yayımla.
+- Başvuruda kullanıcısı veya indirmesi kanıtlanmayan sayıları uydurma.

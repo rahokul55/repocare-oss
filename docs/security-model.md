@@ -11,7 +11,7 @@ The user trusts the invoking Python process and chooses both the Git repository 
 3. GitHub `pull_request_target` and privileged `workflow_run` can combine untrusted code with write-scoped tokens. The provided workflow deliberately uses `pull_request` with read-only permissions.
 4. XML files and command output can be malicious or huge. We cap XML size to 16 MiB; this is not a complete resource isolation mechanism.
 5. JUnit test names and result text may contain untrusted material. Markdown names are escaped and full command logs are stored only in a temporary directory, then removed. Reports still reveal test names.
-6. Timeouts stop the direct child process; subprocess trees and detached child services may outlive it.
+6. Timeout and interruption handling attempt to terminate a process group (POSIX) or process tree (Windows). Detached processes, services, and noncooperating child trees may still outlive the tool. This is best-effort cleanup, not isolation.
 
 ## Safe setup for public repositories
 
@@ -22,3 +22,7 @@ Do not run this tool directly against untrusted code on an administrator worksta
 ## Non-goals in 0.1
 
 No secrets scanning, Docker isolation, package installation, artifact provenance, or automatic PR commenting is currently provided. Those would require design review and security testing before adding them.
+
+## HTML report security
+
+The HTML report is offline: no scripts, external stylesheets or network resources. All test names and Git refs are HTML-escaped. The document includes a restrictive Content Security Policy. Treat it as test-generated diagnostic data, not authenticated evidence.

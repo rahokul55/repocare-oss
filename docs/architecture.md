@@ -13,7 +13,7 @@ CLI input
                                ↓
                      conservative comparison
                                ↓
-                     JSON v1 + Markdown + exit
+                     JSON v1 + Markdown + offline HTML + CI outputs + exit
 ```
 
 ## Modules
@@ -21,7 +21,7 @@ CLI input
 - `junit.py`: validates and parses JUnit XML, enforces unique testcase identities.
 - `runner.py`: resolves Git refs, creates and removes temporary worktrees, executes a command without shell interpretation, handles timeouts and report failures.
 - `compare.py`: pure comparison logic: no I/O, no Git, and no network access.
-- `report.py`: serializes a stable schema and a human-readable summary.
+- `report.py`: serializes a stable JSON schema, Markdown summary and self-contained HTML report.
 - `cli.py`: validates arguments, selects execution modes, assigns exit codes.
 
 ## Failure classification

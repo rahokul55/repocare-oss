@@ -1,124 +1,101 @@
 # RegressionProof
 
-[Source repository](https://github.com/rahokul55/repocare-oss) · [Issues](https://github.com/rahokul55/repocare-oss/issues)
+**Know whether a failing test is new, old, or unstable — before merging a pull request.**
 
-**Find introduced test failures without mistaking old failures for new ones.**
+RegressionProof is a dependency-free Python CLI for comparing JUnit test evidence across Git revisions. It runs your existing test command in temporary detached worktrees or compares reports produced elsewhere. It does not modify the working tree, install dependencies behind your back, or send source code to a service.
 
-RegressionProof is a small, open-source CLI that compares JUnit XML results for two Git revisions. It can execute a test command in a temporary worktree for each revision or compare existing XML reports without executing code. It reports introduced regressions, tests added in a failing state, pre-existing failures, fixes, and tests with inconsistent observations.
+**Release:** `0.2.0` (alpha) · **License:** MIT · **Runtime:** Python 3.10+ and Git for `check` mode · **Cost:** Free; no API keys.
 
-**Status:** `0.1.0` (alpha). The core CLI is implemented and tested. No hosted service, GitHub App, AI feature, or registry publication is available yet.
+## What it tells you
 
-## Why this exists
+- **Introduced regressions:** Tests consistently passing on the baseline and consistently failing on the candidate.
+- **New failing tests:** A test did not exist on the baseline and consistently fails on the candidate.
+- **Pre-existing failures:** Consistently failing on both revisions, independent of whether its result is an assertion failure or an error.
+- **Fixed failures:** Failing on the baseline, consistently passing on the candidate.
+- **Unstable or incomplete:** Results change across observations, or the test is missing from some runs.
+- **Added, removed and other:** Separate groups; skipped tests are not mistaken for passing tests.
 
-A red CI run doesn't always mean a pull request introduced the failing test. The same suite may have failed on the base commit, the new change may fix an existing issue, or the outcome may vary between runs. RegressionProof compares what was actually observed on each revision and avoids calling an absent or skipped test a confirmed pass.
+A single test run **cannot** establish that a test is not flaky. Classification is based on available observations, not statistical proof or the identity of a causal commit.
 
-RegressionProof does **not** tell you which commit caused a failure, replace your CI system, or prove the code is safe.
+## Quick start
 
-## Requirements
-
-- Python 3.10+ and Git installed.
-- A project whose test command can produce JUnit XML, such as pytest.
-- A **trusted local environment or an isolated, ephemeral CI runner**. Git worktrees are not security sandboxes.
-
-No runtime Python dependencies or accounts are required.
-
-## Installation
-
-Until a package is published to a registry, install from a local checkout:
+Clone the source and install it locally:
 
 ```bash
 python -m pip install -e .
 regressionproof --version
-```
-
-For development:
-
-```bash
-python -m pip install -e ".[dev]"
-python -m pytest -q
-```
-
-## First run: no code execution
-
-The repository includes example XML reports. Run this from its root:
-
-```bash
 regressionproof compare --base-xml examples/base.xml --head-xml examples/head.xml
 ```
 
-See `.regressionproof/report.md` for a human-readable summary and `.regressionproof/result.json` for a stable, versioned JSON contract. A generated example is saved at [examples/sample-report.md](examples/sample-report.md).
+The last command produces `.regressionproof/result.json`, `.regressionproof/report.md` and `.regressionproof/report.html`. Open the HTML report in any browser: it is self-contained, has no scripts, and makes no network requests.
 
-## Run a test suite on two revisions
-
-In your **target project's** Git working directory:
+For a real Git project whose tests produce JUnit XML:
 
 ```bash
 regressionproof check --base main --head HEAD \
-  --test-command "{python} -m pytest -q --junitxml={report}" \
-  --runs 2 \
-  --output .regressionproof
+  --test-command '{python} -m pytest -q --junitxml={report}' \
+  --runs 3 --timeout 300 --output .regressionproof
 ```
 
-On Windows PowerShell, place the entire command on one line, or use PowerShell's backtick continuation character instead of `\\`.
+On PowerShell use a single command line or PowerShell backtick continuation, and double quotes around the test command. Required placeholders: `{report}` (JUnit XML output path), optional `{python}` (the Python interpreter running RegressionProof). The command is parsed into arguments, not executed through a shell. Do not include pipes, redirects, or `&&`.
 
-The placeholders have the following meaning:
+**Your test dependencies must already be installed** in the invoking environment. Tests are run against committed snapshots; uncommitted edits are ignored. A Git worktree is not a security sandbox.
 
-- `{python}`: interpreter running RegressionProof.
-- `{report}`: absolute location for that invocation's JUnit XML report.
+## Analyze repeated JUnit evidence without executing test code
 
-The command is split into arguments and executed **without a shell**. Do not use pipes, redirects, or `&&`. Your test dependencies must already be available to the selected Python interpreter; if they differ between revisions, provision compatible environments outside this tool. The tool does not automatically run `pip install` against untrusted branches.
+Repeat `--base-xml` or `--head-xml` to include up to 10 observations per revision:
 
-RegressionProof resolves the base and head refs to commits, creates two detached worktrees **sequentially**, runs the command in each, compares outcomes, writes the reports, and removes the temporary directories. Uncommitted local changes are **not** included in either revision.
+```bash
+regressionproof compare \
+  --base-xml base-run-1.xml --base-xml base-run-2.xml \
+  --head-xml head-run-1.xml --head-xml head-run-2.xml \
+  --fail-on unstable
+```
 
-### Exit codes
+This is useful when other CI pipelines already collect tests and when comparing test suites written in JavaScript, Go, Java, Python, etc. The JUnit producer must emit stable `classname::name` identities.
 
-| Code | Meaning |
+### CI exit policy
+
+| Option | Exit code 1 when... |
 | --- | --- |
-| `0` | No new confirmed failures found (other unstable tests may still exist) |
-| `1` | Introduced regression or newly added failing test found |
-| `2` | Invalid configuration, test invocation, Git operation, or XML report |
+| `--fail-on new` (default) | An introduced or newly added failing test is found |
+| `--fail-on unstable` | Any new failure **or** unstable/incomplete observation is found |
+| `--fail-on none` / `--no-fail` | Never (analysis errors can still return 2) |
 
-Use `--no-fail` to generate reports without failing a CI job. You can use `--timeout 600` for large test suites (maximum 3,600 seconds per invocation). Set `--runs 3` to look for result instability; **one run cannot detect flakiness**.
+Exit code `0` means no failure under the chosen policy; code `2` means the tool could not trust the configuration, Git state, command, or XML input. **A green result is not evidence that all tests passed.**
 
-## Classification
+### GitHub Actions integration
 
-| Before | After | Classification |
-| --- | --- | --- |
-| Consistently passed | Consistently failed/error | Introduced regression |
-| Not present | Consistently failed/error | New failing test |
-| Consistently failed/error | Consistently failed/error | Pre-existing failure |
-| Consistently failed/error | Consistently passed | Fixed failure |
-| Any variation across runs, or missing in one of several runs | Any | Unstable/incomplete |
-| Not present | Consistently passed/skipped | Added test |
-| Present | Not present | Removed test |
-| Skipped | Failed | Unconfirmed (not a proven regression) |
+Opt into a Markdown job summary and machine-readable step outputs:
 
-`failed` and `error` are treated as failures when assessing consistency. Test identity uses `classname::name` from JUnit XML. Duplicate identities fail validation rather than silently merging unrelated tests. Different test parameterizations should use unique names.
+```bash
+regressionproof check --base "$BASE_SHA" --head HEAD \
+  --test-command '{python} -m pytest -q --junitxml={report}' \
+  --runs 2 --github-summary --github-output
+```
 
-## CI integration
+When running inside GitHub Actions, `--github-summary` appends to `GITHUB_STEP_SUMMARY` and `--github-output` appends `status`, `regressions`, `new_failures`, and `unstable` to `GITHUB_OUTPUT`. These flags explicitly require those environment variables; they do not post PR comments or need write-scoped tokens. See [CI integration guide](docs/CI_INTEGRATION.md) and the [example workflow](examples/github-actions.yml).
 
-- See [the example GitHub workflow](examples/github-actions.yml).
-- The repository's own quality gate is in [.github/workflows/ci.yml](.github/workflows/ci.yml).
-- The example uses a read-only `pull_request` workflow, not `pull_request_target`.
-- The example currently references a local development installation path; replace it with a pinned, published source revision before using it in another repository. **A GitHub App and automated PR commenting are not implemented.**
+## Reports
 
-## Security boundary
+- `result.json`: stable machine-readable **schema version 1**, group counts and per-test classifications.
+- `report.md`: compact table format suitable for code review, limited to the first 100 entries in each group.
+- `report.html`: standalone dark-themed dashboard with collapsible groups, HTML-escaped test identities and a restrictive CSP, up to 1,000 entries per group. Full results remain in JSON.
 
-**Running tests executes the code under test.** A detached Git worktree separates source files, not processes, network access, permissions, secrets, or the filesystem. Never run untrusted PR test code on a privileged machine, with deployment credentials, or in a `pull_request_target` workflow. Use isolated short-lived runners and grant `contents: read` only. See [SECURITY.md](SECURITY.md) and [docs/security-model.md](docs/security-model.md).
+JSON schema version 1 is unchanged from 0.1.0. `write_report()` still returns its existing `(json_path, markdown_path)` tuple for API compatibility.
 
-## Scope and limitations
+## Development
 
-- Python CLI; any language is usable if its tests emit compatible JUnit XML.
-- Test dependencies are not automatically installed for each revision.
-- Memory usage depends on the number of XML testcases and output; XML files are limited to 16 MiB.
-- An execution timeout applies to the invoked process. This is not a full process-tree sandbox.
-- Comparison assumes test identities and environment are comparable across revisions.
-- Multi-run comparisons detect inconsistency but cannot determine statistical flake probability.
-- All output is local; there are no API calls or telemetry.
-- JUnit XML report inconsistencies are treated conservatively; an invalid or missing report fails with code 2.
+```bash
+python -m pip install -e '.[dev]'
+python -m pytest -q
+ruff check .
+```
 
-## Project
+The repository has real Git integration tests, JUnit parser tests, output escaping tests, timeout cleanup tests and CLI compatibility tests. Browse [architecture](docs/architecture.md), [contribution guide](CONTRIBUTING.md), [security boundaries](SECURITY.md), [changelog](CHANGELOG.md) and [roadmap](ROADMAP.md).
 
-Read [the architecture notes](docs/architecture.md) before changing the comparison rules. Refer to [CONTRIBUTING.md](CONTRIBUTING.md) for local testing and contribution expectations. Planned work is in [ROADMAP.md](ROADMAP.md); proposals and bug reports are welcome through GitHub Issues after repository publication.
+## Safety and scope
 
-MIT licensed. Maintained as an early-stage community project; no adoption or production reliability claims are made.
+Tests execute **repository code** with the privileges and environment of the invoking process. Use disposable, unprivileged CI runners for unknown contributions. Detached worktrees separate files, not privileges, network or secrets. On timeout the tool attempts to stop the process group; this is not a complete process isolation guarantee. Do not use `pull_request_target` to run untrusted PR code or pass elevated credentials into tests.
+
+No AI integration, browser server, GitHub App, PyPI release, telemetry, causal inference, or adoption claims are included in this release. The program is an additional diagnostic tool, **not** a replacement for the project's standard CI and security checks.

@@ -77,3 +77,19 @@ def test_compare_mode_cli(write_junit, tmp_path):
                  "--no-fail", "--output", str(tmp_path / "result2")]) == 0
     assert main(["compare", "--base-xml", str(before),
                  "--head-xml", str(tmp_path / "missing")]) == 2
+
+
+def test_timeout_terminates_test_process(git_project, tmp_path):
+    repo, base, head, git = git_project
+    # The timeout terminates a running test and worktrees are cleaned up.
+    (repo / 'hang.py').write_text('import time\ntime.sleep(30)\n', encoding='utf-8')
+    git('add', 'hang.py')
+    git('commit', '-m', 'Add a long-running test')
+    sha = git('rev-parse', 'HEAD')
+    old_worktrees = git('worktree', 'list', '--porcelain')
+    import time
+    start = time.monotonic()
+    with pytest.raises(RunnerError, match='timed out'):
+        compare_in_worktrees(repo, sha, sha, '{python} hang.py {report}', 1, 1)
+    assert time.monotonic() - start < 8
+    assert git('worktree', 'list', '--porcelain') == old_worktrees

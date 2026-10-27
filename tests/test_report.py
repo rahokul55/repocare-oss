@@ -8,7 +8,8 @@ from regressionproof.report import to_markdown, write_report
 def test_report_and_markdown_escaping(tmp_path):
     key = "module::hello|`world`\nnewline"
     base = RevisionResult("main", "a" * 40, (TestRun({key: TestCase(key, Outcome.PASSED)}, 0, 1),))
-    head = RevisionResult("topic", "b" * 40, (TestRun({key: TestCase(key, Outcome.FAILED)}, 1, 1),))
+    head = RevisionResult("topic", "b" * 40,
+                          (TestRun({key: TestCase(key, Outcome.FAILED)}, 1, 1),))
     comparison = compare_revisions(base, head)
     result, markdown = write_report(comparison, tmp_path / "out")
     data = json.loads(result.read_text(encoding="utf-8"))

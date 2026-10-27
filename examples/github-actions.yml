@@ -1,6 +1,6 @@
-# Example integration pinned to a specific RegressionProof commit.
+# Example integration AFTER publishing RegressionProof at an immutable Git commit.
 # Copy to YOUR target project's .github/workflows/regressionproof.yml.
-# Review the workflow and install your project's test dependencies before enabling it.
+# This is a template: Replace <REVIEWED_FULL_COMMIT_SHA> with a reviewed immutable commit SHA.
 name: Regression comparison
 on:
   pull_request:
@@ -22,14 +22,15 @@ jobs:
       - name: Install target project's pytest and dependencies
         run: python -m pip install pytest
       - name: Install reviewed RegressionProof revision
-        run: python -m pip install 'git+https://github.com/rahokul55/repocare-oss.git@e590978d874938d4c37b2c21e6cfb361ae4a084f'
+        # Do NOT run until the repository has been published and the hash replaced.
+        run: python -m pip install 'git+https://github.com/rahokul55/repocare-oss.git@<REVIEWED_FULL_COMMIT_SHA>'
       - name: Compare tests
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           regressionproof check --base "$BASE_SHA" --head HEAD --runs 2 \
             --test-command '{python} -m pytest -q --junitxml={report}' \
-            --output .regressionproof
+            --github-summary --github-output --output .regressionproof
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@v4

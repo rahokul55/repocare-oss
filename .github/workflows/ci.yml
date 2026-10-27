@@ -23,17 +23,32 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install
         run: python -m pip install -e '.[dev]'
-      - name: Check formatting and imports
+      - name: Lint
         run: ruff check .
-      - name: Tests
+      - name: Unit and Git integration tests
         run: python -m pytest -q
-      - name: CLI smoke test
+      - name: Package smoke test
         run: |
+          python -m pip wheel --no-deps --no-build-isolation . --wheel-dir dist
           python -m regressionproof --version
-          python -m regressionproof compare --base-xml examples/base.xml --head-xml examples/head.xml --no-fail
+          python -m regressionproof compare \
+            --base-xml examples/base.xml \
+            --head-xml examples/head.xml \
+            --no-fail \
+            --github-summary \
+            --output .regressionproof
+          test -s .regressionproof/result.json
+          test -s .regressionproof/report.html
+      - name: Upload example report
+        if: always() && matrix.python-version == '3.13'
+        uses: actions/upload-artifact@v4
+        with:
+          name: regressionproof-smoke-report
+          path: .regressionproof/
+          if-no-files-found: ignore

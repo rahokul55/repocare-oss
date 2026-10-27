@@ -7,14 +7,15 @@ runs with the permissions, network and secrets of the current process.
 from __future__ import annotations
 
 import os
+import signal
 import shlex
 import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from collections.abc import Iterator
 
 from .junit import JUnitError, parse_junit
 from .model import Outcome, RevisionResult, TestRun
@@ -75,6 +76,28 @@ def parse_command(template: str) -> tuple[str, ...]:
     return tuple(argv)
 
 
+def _stop_process_tree(process: subprocess.Popen) -> None:
+    """Best effort: terminate direct children and the process group on timeout."""
+    if os.name == "nt":
+        try:
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(process.pid)],
+                           capture_output=True, timeout=10, check=False)
+        except (OSError, subprocess.TimeoutExpired):
+            process.kill()
+    else:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except OSError:
+            process.kill()
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+
+
 def _run_once(
     directory: Path, scratch: Path, template: tuple[str, ...], timeout: float
 ) -> TestRun:
@@ -92,28 +115,40 @@ def _run_once(
     started = time.monotonic()
     scratch.mkdir(parents=True, exist_ok=True)
     output_path = scratch / "command.log"
-    try:
-        with output_path.open("wb") as log:
-            process = subprocess.run(argv, cwd=directory, env=environment, stdout=log,
-                                     stderr=subprocess.STDOUT, timeout=timeout, check=False)
-    except subprocess.TimeoutExpired as exc:
-        raise RunnerError(f"Test command timed out after {timeout:g} seconds") from exc
-    except OSError as exc:
-        raise RunnerError(f"Cannot start test command: {exc}") from exc
+    # A process group lets us terminate children started by the test command on
+    # POSIX after a timeout or Ctrl-C. This is lifecycle management, not a sandbox.
+    popen_options = (
+        {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if os.name == "nt"
+        else {"start_new_session": True}
+    )
+    with output_path.open("wb") as log:
+        try:
+            process = subprocess.Popen(argv, cwd=directory, env=environment, stdout=log,
+                                       stderr=subprocess.STDOUT, **popen_options)
+        except OSError as exc:
+            raise RunnerError(f"Cannot start test command: {exc}") from exc
+        try:
+            return_code = process.wait(timeout=timeout)
+        except (subprocess.TimeoutExpired, KeyboardInterrupt) as exc:
+            _stop_process_tree(process)
+            if isinstance(exc, KeyboardInterrupt):
+                raise
+            raise RunnerError(f"Test command timed out after {timeout:g} seconds") from exc
     elapsed = time.monotonic() - started
     try:
         parsed = parse_junit(report)
     except JUnitError as exc:
         tail = output_path.read_bytes()[-2000:].decode("utf-8", errors="replace")
-        raise RunnerError(f"{exc}; command exit={process.returncode}; output tail:\n{tail}") from exc
-    failures = [test for test in parsed.values() if test.outcome in {Outcome.FAILED, Outcome.ERROR}]
-    if process.returncode != 0 and not failures:
+        raise RunnerError(f"{exc}; command exit={return_code}; output tail:\n{tail}") from exc
+    failures = [test for test in parsed.values()
+                if test.outcome in {Outcome.FAILED, Outcome.ERROR}]
+    if return_code != 0 and not failures:
         tail = output_path.read_bytes()[-2000:].decode("utf-8", errors="replace")
         raise RunnerError(
-            f"Test command exit={process.returncode} but JUnit contains no failures; "
+            f"Test command exit={return_code} but JUnit contains no failures; "
             f"possible execution error. Output tail:\n{tail}"
         )
-    return TestRun(tests=parsed, exit_code=process.returncode, elapsed_seconds=elapsed)
+    return TestRun(tests=parsed, exit_code=return_code, elapsed_seconds=elapsed)
 
 
 def run_revision(

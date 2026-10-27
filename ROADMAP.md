@@ -10,13 +10,21 @@ Items below are proposals, not shipped features. Scope will depend on community 
 - [x] JSON and Markdown output
 - [x] Tests, package metadata, contribution and security policies
 
+## v0.2: CI and reporting (implemented)
+
+- [x] Multi-run report-only comparisons
+- [x] Standalone HTML dashboard
+- [x] Explicit CI failure policy and GitHub job summaries
+- [x] Best-effort process group cleanup on timeout
+- [x] CLI, HTML escaping and timeout integration tests
+
 ## Near term
 
 - [ ] Better per-test identity normalization across popular JUnit producers
 - [ ] Explicit environment provisioning hooks with safe opt-in controls
 - [ ] Self-contained GitHub Action with published immutable version
 - [ ] Compatibility tests for pytest, Jest, Go and Maven reports
-- [ ] Better timeout/process-tree handling and log redaction choices
+- [ ] CI-controlled log redaction and optional retention for troubleshooting
 - [ ] Release artifacts and a reproducible packaging process
 
 ## Later (design needed)
