@@ -30,6 +30,7 @@ jobs:
         run: |
           regressionproof check --base "$BASE_SHA" --head HEAD --runs 2 \
             --test-command '{python} -m pytest -q --junitxml={report}' \
+            --schedule interleaved --min-overlap 80 \
             --github-summary --github-output --output .regressionproof
       - name: Upload report
         if: always()

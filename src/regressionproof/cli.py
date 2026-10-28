@@ -20,6 +20,9 @@ DEFAULT_COMMAND = "{python} -m pytest -q --junitxml={report}"
 def _common_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--output", type=Path, default=Path(".regressionproof"),
                         help="Directory for JSON, Markdown and HTML reports")
+    parser.add_argument("--min-overlap", type=float, default=0.0,
+                        help="Fail if less than this percentage of baseline test identities "
+                             "appear in the candidate (0-100, default 0)")
     parser.add_argument("--fail-on", choices=("new", "unstable", "none"), default="new",
                         help="CI failure policy: new failures (default), also unstable, or never")
     parser.add_argument("--no-fail", action="store_true",
@@ -43,6 +46,9 @@ def make_parser() -> argparse.ArgumentParser:
     check.add_argument("--test-command", default=DEFAULT_COMMAND,
                        help="No shell; must produce JUnit XML at {report}; {python} supported")
     check.add_argument("--runs", type=int, default=1, help="Repeat tests per revision (1-10)")
+    check.add_argument("--schedule", choices=("grouped", "interleaved"),
+                       default="grouped", help="Test each revision in blocks or alternate "
+                                               "attempts between revisions")
     check.add_argument("--timeout", type=float, default=300,
                        help="Max seconds per invocation (1-3600)")
     _common_options(check)
@@ -85,15 +91,24 @@ def _emit_github(comparison: Comparison, summary: bool, output: bool) -> None:
                  f"regressions={counts['regressions']}",
                  f"new_failures={counts['new_failures']}",
                  f"unstable={counts['flaky']}"]
+        evidence = comparison.evidence
+        lines.extend((f"quality={evidence.quality}",
+                      f"shared_tests={evidence.shared_tests}",
+                      f"baseline_tests={evidence.baseline_tests}",
+                      f"candidate_tests={evidence.candidate_tests}",
+                      f"overlap_percent={evidence.overlap_percent:.2f}"))
         _github_append("GITHUB_OUTPUT", "\n".join(lines) + "\n")
 
 
 def main(argv: list[str] | None = None) -> int:
     args = make_parser().parse_args(argv)
     try:
+        if not 0 <= args.min_overlap <= 100:
+            raise ValueError("--min-overlap must be in the range 0..100")
         if args.mode == "check":
             comparison = compare_in_worktrees(args.project, args.base, args.head,
-                                              args.test_command, args.runs, args.timeout)
+                                              args.test_command, args.runs, args.timeout,
+                                              args.schedule)
         else:
             comparison = _from_xml(args.base_xml, args.head_xml)
         json_file, markdown_file = write_report(comparison, args.output.resolve())
@@ -105,9 +120,18 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Regressions: {len(comparison.regressions)}; "
           f"new failing tests: {len(comparison.new_failures)}; "
           f"unstable/incomplete: {len(comparison.flaky)}")
+    evidence = comparison.evidence
+    print(f"Shared identities: {evidence.shared_tests}/{evidence.baseline_tests} "
+          f"({evidence.overlap_percent:.2f}%); evidence: {evidence.quality}")
+    for warning in evidence.warnings:
+        print(f"Warning: {warning}", file=sys.stderr)
     print(f"Report: {markdown_file}")
     print(f"JSON:   {json_file}")
     print(f"HTML:   {markdown_file.with_suffix('.html')}")
+    if evidence.overlap_percent < args.min_overlap:
+        print(f"Baseline overlap {evidence.overlap_percent:.2f}% below "
+              f"required {args.min_overlap:.2f}%", file=sys.stderr)
+        return 1
     policy = "none" if args.no_fail else args.fail_on
     if comparison.has_new_failure and policy != "none":
         return 1

@@ -25,7 +25,12 @@ regressionproof check --base "$BASE_SHA" --head HEAD \
   --github-summary --github-output
 ```
 
-`GITHUB_STEP_SUMMARY` receives the Markdown report. `GITHUB_OUTPUT` receives `status`, `regressions`, `new_failures`, and `unstable`. The tool does not need GitHub API permissions. It also produces `report.html` for download as an artifact.
+`GITHUB_STEP_SUMMARY` receives the Markdown report. `GITHUB_OUTPUT` receives `status`, `regressions`, `new_failures`, and `unstable`, `quality`, `shared_tests`, `baseline_tests`, `candidate_tests`, and `overlap_percent`. The tool does not need GitHub API permissions. It also produces `report.html` for download as an artifact.
+
+`--min-overlap 80` independently fails the comparison when fewer than 80% of
+baseline test identities also appear in the candidate. This is not source-code
+coverage; see [evidence quality](EVIDENCE_QUALITY.md). You may add
+`--schedule interleaved` to alternate repeated test invocations.
 
 `--fail-on unstable` is stricter than the default and can make a PR fail even when no new deterministic regression is observed. Use this only if incomplete/missing test observations should block your merge process.
 

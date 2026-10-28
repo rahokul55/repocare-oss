@@ -18,6 +18,14 @@ Items below are proposals, not shipped features. Scope will depend on community 
 - [x] Best-effort process group cleanup on timeout
 - [x] CLI, HTML escaping and timeout integration tests
 
+## v0.3: evidence continuity and PR verification (implemented)
+
+- [x] Detect zero or partial test-identity overlap; report evidence quality warnings
+- [x] Optional `--min-overlap` CI failure policy without changing defaults
+- [x] Alternate repeated attempts for baseline and candidate
+- [x] Self-test the regression engine on pull requests in a read-only GitHub Action
+- [x] Add focused regression tests and documentation of the confidence model
+
 ## Near term
 
 - [ ] Better per-test identity normalization across popular JUnit producers

@@ -4,7 +4,7 @@
 
 RegressionProof is a dependency-free Python CLI for comparing JUnit test evidence across Git revisions. It runs your existing test command in temporary detached worktrees or compares reports produced elsewhere. It does not modify the working tree, install dependencies behind your back, or send source code to a service.
 
-**Release:** `0.2.0` (alpha) · **License:** MIT · **Runtime:** Python 3.10+ and Git for `check` mode · **Cost:** Free; no API keys.
+**Release:** `0.3.0` (alpha) · **License:** MIT · **Runtime:** Python 3.10+ and Git for `check` mode · **Cost:** Free; no API keys.
 
 ## What it tells you
 
@@ -40,6 +40,29 @@ regressionproof check --base main --head HEAD \
 On PowerShell use a single command line or PowerShell backtick continuation, and double quotes around the test command. Required placeholders: `{report}` (JUnit XML output path), optional `{python}` (the Python interpreter running RegressionProof). The command is parsed into arguments, not executed through a shell. Do not include pipes, redirects, or `&&`.
 
 **Your test dependencies must already be installed** in the invoking environment. Tests are run against committed snapshots; uncommitted edits are ignored. A Git worktree is not a security sandbox.
+
+## Evidence quality and continuity guards
+
+A green regression comparison can be misleading if a PR silently removes or renames
+the existing test suite. RegressionProof now counts **shared test identities** across
+revisions, warns when the evidence is insufficient or partial, and optionally enforces
+a minimum baseline overlap. This is *test identity overlap*, not source coverage:
+
+```bash
+regressionproof check --base main --head HEAD --runs 2 \
+  --schedule interleaved --min-overlap 80 \
+  --test-command '{python} -m pytest -q --junitxml={report}'
+```
+
+`--schedule interleaved` alternates baseline and candidate test attempts to reduce
+some time-based bias; `grouped` remains the default for compatibility. `--min-overlap`
+accepts `0`–`100` and defaults to `0`. Enabling it causes exit `1` when the share
+of baseline identities also present in the candidate is below the threshold, even
+if `--no-fail` is used. It does not guarantee test quality or absence of regressions.
+
+Read [Evidence quality explained](docs/EVIDENCE_QUALITY.md) for definitions and
+limitations, or [our self-testing PR workflow](.github/workflows/pr-evidence.yml)
+for an example that runs RegressionProof against the project's own pull requests.
 
 ## Analyze repeated JUnit evidence without executing test code
 
@@ -78,11 +101,11 @@ When running inside GitHub Actions, `--github-summary` appends to `GITHUB_STEP_S
 
 ## Reports
 
-- `result.json`: stable machine-readable **schema version 1**, group counts and per-test classifications.
+- `result.json`: stable machine-readable **schema version 1**, group counts, identity overlap evidence and per-test classifications.
 - `report.md`: compact table format suitable for code review, limited to the first 100 entries in each group.
 - `report.html`: standalone dark-themed dashboard with collapsible groups, HTML-escaped test identities and a restrictive CSP, up to 1,000 entries per group. Full results remain in JSON.
 
-JSON schema version 1 is unchanged from 0.1.0. `write_report()` still returns its existing `(json_path, markdown_path)` tuple for API compatibility.
+JSON schema version 1 retains its established fields and adds an optional `evidence` object. `write_report()` still returns its existing `(json_path, markdown_path)` tuple for API compatibility.
 
 ## Development
 
