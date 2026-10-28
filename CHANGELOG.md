@@ -2,6 +2,23 @@
 
 Notable changes to RegressionProof. Versions follow semantic versioning for the CLI, while the project remains alpha.
 
+## 0.3.0 — 2026-10-28
+
+### Added
+
+- Test identity continuity metrics in additive JSON `evidence`, Markdown and offline HTML reports.
+- Explicit `--min-overlap` failure guard for PRs that lose baseline test identities.
+- `--schedule interleaved` to alternate baseline and candidate repeated runs, with worktree cleanup guarantees.
+- GitHub Actions step outputs for identity overlap and evidence quality.
+- A read-only self-dogfooding PR workflow, a focused evidence-quality guide, and additional integration/unit tests.
+
+### Compatibility and limits
+
+- Default grouped run ordering and default exit policy are unchanged.
+- JSON schema version remains 1; the new evidence object is additive.
+- Overlap is not code coverage, the quality field is not a probability, and tests remain untrusted executable code.
+- GitHub workflow builds use isolated PEP 517 wheel builds on Python 3.10–3.13.
+
 ## 0.2.0 — 2026-10-27
 
 ### Added

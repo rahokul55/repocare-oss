@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "regressionproof"
-version = "0.2.0"
+version = "0.3.0"
 description = "Compare JUnit test results between Git revisions and identify introduced failures"
 readme = "README.md"
 requires-python = ">=3.10"

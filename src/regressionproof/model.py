@@ -44,6 +44,20 @@ class ChangedTest:
 
 
 @dataclass(frozen=True)
+class EvidenceSummary:
+    """Test identity comparability, not coverage of executable source lines."""
+
+    baseline_tests: int
+    candidate_tests: int
+    shared_tests: int
+    added_tests: int
+    removed_tests: int
+    overlap_percent: float
+    quality: str
+    warnings: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Comparison:
     base: RevisionResult
     head: RevisionResult
@@ -55,6 +69,38 @@ class Comparison:
     added: tuple[ChangedTest, ...]
     removed: tuple[ChangedTest, ...]
     other: tuple[ChangedTest, ...]
+
+    @property
+    def evidence(self) -> EvidenceSummary:
+        baseline = {key for run in self.base.runs for key in run.tests}
+        candidate = {key for run in self.head.runs for key in run.tests}
+        common = baseline & candidate
+        overlap = round(100 * len(common) / len(baseline), 2) if baseline else 0.0
+        warnings = []
+        if not common:
+            warnings.append("No shared test identities: results cannot establish continuity.")
+        if baseline - candidate:
+            warnings.append("Some baseline test identities are absent from the candidate.")
+        if self.flaky:
+            warnings.append("Unstable or incomplete observations limit comparison confidence.")
+        if any(
+            all(run.tests.get(key) is not None and
+                run.tests[key].outcome == Outcome.SKIPPED for run in self.head.runs)
+            for key in candidate
+        ):
+            warnings.append("Candidate has skipped tests; a skip is not a pass.")
+        if not common:
+            quality = "insufficient"
+        elif warnings:
+            quality = "partial"
+        else:
+            quality = "comparable"
+        return EvidenceSummary(
+            baseline_tests=len(baseline), candidate_tests=len(candidate),
+            shared_tests=len(common), added_tests=len(candidate - baseline),
+            removed_tests=len(baseline - candidate), overlap_percent=overlap,
+            quality=quality, warnings=tuple(warnings),
+        )
 
     @property
     def has_new_failure(self) -> bool:

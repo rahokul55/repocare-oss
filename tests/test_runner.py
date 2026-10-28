@@ -93,3 +93,46 @@ def test_timeout_terminates_test_process(git_project, tmp_path):
         compare_in_worktrees(repo, sha, sha, '{python} hang.py {report}', 1, 1)
     assert time.monotonic() - start < 8
     assert git('worktree', 'list', '--porcelain') == old_worktrees
+
+
+def test_interleaved_schedule_alternates_and_cleans_up(git_project, monkeypatch):
+    from regressionproof import runner
+
+    repo, base, head, git = git_project
+    original = runner._run_once
+    visited = []
+
+    def recording_run(directory, scratch, argv, timeout):
+        visited.append(directory.name)
+        return original(directory, scratch, argv, timeout)
+
+    monkeypatch.setattr(runner, "_run_once", recording_run)
+    before = git("worktree", "list", "--porcelain")
+    result = compare_in_worktrees(
+        repo, base, head, "{python} suite.py {report}",
+        runs=3, timeout=10, schedule="interleaved",
+    )
+    assert visited == ["base", "head"] * 3
+    assert len(result.regressions) == 1
+    assert len(result.base.runs) == 3
+    assert git("worktree", "list", "--porcelain") == before
+
+
+def test_interleaved_schedule_cleans_up_on_timeout(git_project):
+    repo, base, head, git = git_project
+    (repo / "suite.py").write_text("import time\ntime.sleep(30)\n", encoding="utf-8")
+    git("add", "suite.py")
+    git("commit", "-m", "Simulate a hanging test in candidate")
+    head = git("rev-parse", "HEAD")
+    before = git("worktree", "list", "--porcelain")
+    with pytest.raises(RunnerError, match="timed out"):
+        compare_in_worktrees(repo, base, head, "{python} suite.py {report}",
+                             runs=2, timeout=1, schedule="interleaved")
+    assert git("worktree", "list", "--porcelain") == before
+
+
+def test_unknown_schedule_rejected(git_project):
+    repo, base, head, _ = git_project
+    with pytest.raises(RunnerError, match="schedule"):
+        compare_in_worktrees(repo, base, head, "{python} suite.py {report}",
+                             runs=1, timeout=10, schedule="unsupported")

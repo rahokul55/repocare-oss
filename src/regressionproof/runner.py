@@ -14,7 +14,7 @@ import sys
 import tempfile
 import time
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
 from .junit import JUnitError, parse_junit
@@ -167,7 +167,7 @@ def run_revision(
 
 def compare_in_worktrees(
     project: Path, base_ref: str, head_ref: str, test_command: str,
-    runs: int, timeout: float,
+    runs: int, timeout: float, schedule: str = "grouped",
 ):
     from .compare import compare_revisions
 
@@ -175,16 +175,34 @@ def compare_in_worktrees(
         raise RunnerError("--runs must be between 1 and 10")
     if not 1 <= timeout <= 3600:
         raise RunnerError("--timeout must be between 1 and 3600 seconds")
+    if schedule not in {"grouped", "interleaved"}:
+        raise RunnerError("--schedule must be grouped or interleaved")
     repo = find_repository(project)
     before = resolve_commit(repo, base_ref)
     after = resolve_commit(repo, head_ref)
     template = parse_command(test_command)
     with tempfile.TemporaryDirectory(prefix="regressionproof-") as temporary:
         root = Path(temporary)
-        with detached_worktree(repo, before, root / "base") as base_tree:
-            baseline = run_revision(base_ref, before, base_tree, root / "logs-base",
-                                    template, runs, timeout)
-        with detached_worktree(repo, after, root / "head") as head_tree:
-            candidate = run_revision(head_ref, after, head_tree, root / "logs-head",
-                                     template, runs, timeout)
+        if schedule == "grouped":
+            with detached_worktree(repo, before, root / "base") as base_tree:
+                baseline = run_revision(base_ref, before, base_tree, root / "logs-base",
+                                        template, runs, timeout)
+            with detached_worktree(repo, after, root / "head") as head_tree:
+                candidate = run_revision(head_ref, after, head_tree, root / "logs-head",
+                                         template, runs, timeout)
+        else:
+            # Alternate attempts to reduce bias from time-varying shared environment.
+            # Both worktrees must coexist; ExitStack guarantees cleanup on failures.
+            with ExitStack() as stack:
+                base_tree = stack.enter_context(detached_worktree(repo, before, root / "base"))
+                head_tree = stack.enter_context(detached_worktree(repo, after, root / "head"))
+                baseline_runs = []
+                candidate_runs = []
+                for i in range(runs):
+                    baseline_runs.append(_run_once(base_tree, root / "logs-base" / str(i + 1),
+                                                   template, timeout))
+                    candidate_runs.append(_run_once(head_tree, root / "logs-head" / str(i + 1),
+                                                    template, timeout))
+                baseline = RevisionResult(base_ref, before, tuple(baseline_runs))
+                candidate = RevisionResult(head_ref, after, tuple(candidate_runs))
         return compare_revisions(baseline, candidate)
