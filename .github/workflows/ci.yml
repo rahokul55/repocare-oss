@@ -35,7 +35,7 @@ jobs:
         run: python -m pytest -q
       - name: Package smoke test
         run: |
-          python -m pip wheel --no-deps --no-build-isolation . --wheel-dir dist
+          python -m pip wheel --no-deps . --wheel-dir dist
           python -m regressionproof --version
           python -m regressionproof compare \
             --base-xml examples/base.xml \
