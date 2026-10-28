@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from .model import ChangedTest, Comparison, Outcome, RevisionResult
 
-
 _FAILURES = {Outcome.ERROR.value, Outcome.FAILED.value}
 
 
